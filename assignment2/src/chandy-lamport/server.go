@@ -14,6 +14,8 @@ type Server struct {
 	outboundLinks map[string]*Link // key = link.dest
 	inboundLinks  map[string]*Link // key = link.src
 	// TODO: ADD MORE FIELDS HERE
+	snapshotted    bool
+	snapshotTokens int
 }
 
 // A unidirectional communication channel between two servers
@@ -31,6 +33,8 @@ func NewServer(id string, tokens int, sim *Simulator) *Server {
 		sim,
 		make(map[string]*Link),
 		make(map[string]*Link),
+		false,
+		0,
 	}
 }
 
@@ -85,10 +89,32 @@ func (server *Server) SendTokens(numTokens int, dest string) {
 // should notify the simulator by calling `sim.NotifySnapshotComplete`.
 func (server *Server) HandlePacket(src string, message interface{}) {
 	// TODO: IMPLEMENT ME
+
+	// Actualizar las tokens actuales
+	// Notificar cuando haya terminado el snapshot
+	switch message := message.(type) {
+	case MarkerMessage:
+		if !server.snapshotted {
+			server.StartSnapshot(message.snapshotId)
+		}else{
+			server.sim.NotifySnapshotComplete(server.Id, message.snapshotId)
+		}
+
+	case TokenMessage:
+		server.Tokens++
+
+	default:
+		log.Fatal("Error unknown message: ", message)
+	}
 }
 
 // Start the chandy-lamport snapshot algorithm on this server.
 // This should be called only once per server.
 func (server *Server) StartSnapshot(snapshotId int) {
 	// TODO: IMPLEMENT ME
+	server.snapshotTokens = server.Tokens
+	server.snapshotted = true
+	markerMessage := MarkerMessage{snapshotId: snapshotId}
+	server.SendToNeighbors(markerMessage)
 }
+
